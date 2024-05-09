@@ -814,7 +814,7 @@ class LEditsPPPipelineStableDiffusion(
             content, according to the `safety_checker`.
         """
 
-        if self.inversion_steps is None:
+        if self.inversion_steps is None: # [970,971,...1000]
             raise ValueError(
                 "You need to invert an input image first before calling the pipeline. The `invert` method has to be called beforehand. Edits will always be performed for the last inverted image(s)."
             )
@@ -880,6 +880,7 @@ class LEditsPPPipelineStableDiffusion(
             lora_scale=lora_scale,
             clip_skip=self.clip_skip,
         )
+        # encode_prompt  --> return editing_prompt_embeds, negative_prompt_embeds, num_edit_tokens
 
         # For classifier free guidance, we need to do two forward passes.
         # Here we concatenate the unconditional and text embeddings into a single batch
@@ -895,7 +896,7 @@ class LEditsPPPipelineStableDiffusion(
         timesteps = self.inversion_steps
         t_to_idx = {int(v): k for k, v in enumerate(timesteps[-zs.shape[0] :])}
 
-        if use_cross_attn_mask:
+        if use_cross_attn_mask: # Even though default is False, but it is set to True when use_intersect_mask is True
             self.attention_store = LeditsAttentionStore(
                 average=store_averaged_over_steps,
                 batch_size=batch_size,
@@ -908,6 +909,10 @@ class LEditsPPPipelineStableDiffusion(
 
         # 5. Prepare latent variables
         num_channels_latents = self.unet.config.in_channels
+
+        # scale the initial noise by the standard deviation required by the scheduler
+        # inside self.prepare_latents: latents = latents * self.scheduler.init_noise_sigma
+
         latents = self.prepare_latents(
             batch_size * num_images_per_prompt,
             num_channels_latents,
@@ -915,7 +920,7 @@ class LEditsPPPipelineStableDiffusion(
             None,
             text_embeddings.dtype,
             self.device,
-            latents,
+            latents, # self.init_latents
         )
 
         # 6. Prepare extra step kwargs.
@@ -935,9 +940,9 @@ class LEditsPPPipelineStableDiffusion(
                 else:
                     latent_model_input = latents
 
-                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t) # did nothing
 
-                text_embed_input = text_embeddings
+                text_embed_input = text_embeddings # [unconditional_embeddings, edit_concepts]
 
                 # predict the noise residual
                 noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embed_input).sample
@@ -1016,6 +1021,7 @@ class LEditsPPPipelineStableDiffusion(
                                 select=self.text_cross_attention_maps.index(editing_prompt[c]),
                             )
                             attn_map = out[:, :, :, 1 : 1 + num_edit_tokens[c]]  # 0 -> startoftext
+                            # num_edit_tokens -> length of tokens of editing prompt - 2 --> not counting startoftext and endoftext
 
                             # average over all tokens
                             if attn_map.shape[3] != num_edit_tokens[c]:
@@ -1025,7 +1031,7 @@ class LEditsPPPipelineStableDiffusion(
 
                             attn_map = torch.sum(attn_map, dim=3)
 
-                            # gaussian_smoothing
+                            # gaussian_smoothing for elminiating noise
                             attn_map = F.pad(attn_map.unsqueeze(1), (1, 1, 1, 1), mode="reflect")
                             attn_map = self.smoothing(attn_map).squeeze(1)
 
@@ -1051,13 +1057,15 @@ class LEditsPPPipelineStableDiffusion(
 
                         if use_intersect_mask:
                             if t <= 800:
+                                # prior knowledge: noise_guidance_edit_tmp = noise_pred_edit_concept - noise_pred_uncond
+                                # shape of noise (b,c,h,w)
                                 noise_guidance_edit_tmp_quantile = torch.abs(noise_guidance_edit_tmp)
                                 noise_guidance_edit_tmp_quantile = torch.sum(
                                     noise_guidance_edit_tmp_quantile, dim=1, keepdim=True
                                 )
                                 noise_guidance_edit_tmp_quantile = noise_guidance_edit_tmp_quantile.repeat(
                                     1, self.unet.config.in_channels, 1, 1
-                                )
+                                ) # this quantile is for pixel-wise (different channel value has already been summed up)
 
                                 # torch.quantile function expects float32
                                 if noise_guidance_edit_tmp_quantile.dtype == torch.float32:
@@ -1066,7 +1074,7 @@ class LEditsPPPipelineStableDiffusion(
                                         edit_threshold_c,
                                         dim=2,
                                         keepdim=False,
-                                    )
+                                    ) # shape of tmp is (b,c)
                                 else:
                                     tmp = torch.quantile(
                                         noise_guidance_edit_tmp_quantile.flatten(start_dim=2).to(torch.float32),
@@ -1140,6 +1148,7 @@ class LEditsPPPipelineStableDiffusion(
 
                 if enable_edit_guidance and self.guidance_rescale > 0.0:
                     # Based on 3.4. in https://arxiv.org/pdf/2305.08891.pdf
+                    # CommonDiffusion Noise Schedules and Sample Steps are Flawed
                     noise_pred = rescale_noise_cfg(
                         noise_pred,
                         noise_pred_edit_concepts.mean(dim=0, keepdim=False),
@@ -1214,7 +1223,7 @@ class LEditsPPPipelineStableDiffusion(
         r"""
         The function to the pipeline for image inversion as described by the [LEDITS++
         Paper](https://arxiv.org/abs/2301.12247). If the scheduler is set to [`~schedulers.DDIMScheduler`] the
-        inversion proposed by [edit-friendly DPDM](https://arxiv.org/abs/2304.06140) will be performed instead.
+        inversion proposed by [edit-friendly DDPM](https://arxiv.org/abs/2304.06140) will be performed instead.
 
          Args:
             image (`PipelineImageInput`):
@@ -1267,6 +1276,7 @@ class LEditsPPPipelineStableDiffusion(
         self.scheduler.config.timestep_spacing = "leading"
         self.scheduler.set_timesteps(int(num_inversion_steps * (1 + skip)))
         self.inversion_steps = self.scheduler.timesteps[-num_inversion_steps:]
+        # [970,971...1000]
         timesteps = self.inversion_steps
 
         # 1. encode image
@@ -1278,11 +1288,12 @@ class LEditsPPPipelineStableDiffusion(
             resize_mode=resize_mode,
             crops_coords=crops_coords,
         )
+        # x0 is the latent representation of the input image, resized is the original image after resize
         self.batch_size = x0.shape[0]
 
         # autoencoder reconstruction
         image_rec = self.vae.decode(x0 / self.vae.config.scaling_factor, return_dict=False, generator=generator)[0]
-        image_rec = self.image_processor.postprocess(image_rec, output_type="pil")
+        image_rec = self.image_processor.postprocess(image_rec, output_type="pil") #postprocess just convert the image to pil
 
         # 2. get embeddings
         do_classifier_free_guidance = source_guidance_scale > 1.0
@@ -1303,24 +1314,25 @@ class LEditsPPPipelineStableDiffusion(
         variance_noise_shape = (num_inversion_steps, *x0.shape)
 
         # intermediate latents
-        t_to_idx = {int(v): k for k, v in enumerate(timesteps)}
+        t_to_idx = {int(v): k for k, v in enumerate(timesteps)} # {970:0, 971:1, ...}
         xts = torch.zeros(size=variance_noise_shape, device=self.device, dtype=uncond_embedding.dtype)
 
         for t in reversed(timesteps):
             idx = num_inversion_steps - t_to_idx[int(t)] - 1
             noise = randn_tensor(shape=x0.shape, generator=generator, device=self.device, dtype=x0.dtype)
-            xts[idx] = self.scheduler.add_noise(x0, noise, torch.Tensor([t]))
-        xts = torch.cat([x0.unsqueeze(0), xts], dim=0)
+            xts[idx] = self.scheduler.add_noise(x0, noise, torch.Tensor([t])) # here the idx: small --> large
+        xts = torch.cat([x0.unsqueeze(0), xts], dim=0) # [x0,x970,x971,...]
 
-        self.scheduler.set_timesteps(len(self.scheduler.timesteps))
+        self.scheduler.set_timesteps(len(self.scheduler.timesteps)) # calculate alphas and betas
         # noise maps
         zs = torch.zeros(size=variance_noise_shape, device=self.device, dtype=uncond_embedding.dtype)
 
         with self.progress_bar(total=len(timesteps)) as progress_bar:
             for t in timesteps:
                 idx = num_inversion_steps - t_to_idx[int(t)] - 1
+                # direction 1000 -> 970
                 # 1. predict noise residual
-                xt = xts[idx + 1]
+                xt = xts[idx + 1] # x_t
 
                 noise_pred = self.unet(xt, timestep=t, encoder_hidden_states=uncond_embedding).sample
 
@@ -1328,7 +1340,8 @@ class LEditsPPPipelineStableDiffusion(
                     noise_pred_cond = self.unet(xt, timestep=t, encoder_hidden_states=text_embeddings).sample
                     noise_pred = noise_pred + source_guidance_scale * (noise_pred_cond - noise_pred)
 
-                xtm1 = xts[idx]
+                xtm1 = xts[idx] #x_t-1
+                # def compute_noise_sde_dpm_pp_2nd(scheduler, prev_latents, latents, timestep, noise_pred, eta)
                 z, xtm1_corrected = compute_noise(self.scheduler, xtm1, xt, t, noise_pred, self.eta)
                 zs[idx] = z
 
@@ -1336,8 +1349,10 @@ class LEditsPPPipelineStableDiffusion(
                 xts[idx] = xtm1_corrected
 
                 progress_bar.update()
+                # here we save the corresponding noise z for each step
+                # and we correct the x_t for each step
 
-        self.init_latents = xts[-1].expand(self.batch_size, -1, -1, -1)
+        self.init_latents = xts[-1].expand(self.batch_size, -1, -1, -1) # x_1000 -> for image edition
         zs = zs.flip(0)
         self.zs = zs
 

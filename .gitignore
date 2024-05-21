@@ -1,7 +1,7 @@
 # Initially taken from GitHub's Python gitignore file
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
+*__pycache__*
 *.py[cod]
 *$py.class
 
@@ -176,3 +176,9 @@ tags
 
 # wandb
 wandb
+
+#DS_Store
+*.DS_Store*
+
+#Results
+*PNP-results*

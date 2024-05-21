@@ -38,14 +38,15 @@ class Preprocess(nn.Module):
             print(f'[INFO] using hugging face custom model key: {hf_key}')
             model_key = hf_key
         elif self.sd_version == '2.1':
-            model_key = "stabilityai/stable-diffusion-2-1-base"
-        elif self.sd_version == '2.0':
-            model_key = "stabilityai/stable-diffusion-2-base"
+            model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-2-1"
+        # elif self.sd_version == '2.0':
+        #     model_key = "stabilityai/stable-diffusion-2-base"
         elif self.sd_version == '1.5':
-            model_key = "runwayml/stable-diffusion-v1-5"
-        elif self.sd_version == 'depth':
-            model_key = "stabilityai/stable-diffusion-2-depth"
-            self.use_depth = True
+            #model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-v1-5"
+            model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/experiments/full_training/jidu-III-sunnyday2snowyday-v2/bs_6_lr_1e6_4gpu"
+        # elif self.sd_version == 'depth':
+        #     model_key = "stabilityai/stable-diffusion-2-depth"
+        #     self.use_depth = True
         else:
             raise ValueError(f'Stable-diffusion version {self.sd_version} not supported.')
 
@@ -169,13 +170,9 @@ class Preprocess(nn.Module):
 def run(opt):
     # timesteps to save
     if opt.sd_version == '2.1':
-        model_key = "stabilityai/stable-diffusion-2-1-base"
-    elif opt.sd_version == '2.0':
-        model_key = "stabilityai/stable-diffusion-2-base"
+        model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-2-1"
     elif opt.sd_version == '1.5':
-        model_key = "runwayml/stable-diffusion-v1-5"
-    elif opt.sd_version == 'depth':
-        model_key = "stabilityai/stable-diffusion-2-depth"
+        model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/experiments/full_training/jidu-III-sunnyday2snowyday-v2/bs_6_lr_1e6_4gpu"
     toy_scheduler = DDIMScheduler.from_pretrained(model_key, subfolder="scheduler")
     toy_scheduler.set_timesteps(opt.save_steps)
     timesteps_to_save, num_inference_steps = get_timesteps(toy_scheduler, num_inference_steps=opt.save_steps,
@@ -205,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', type=str,
                         default='data/horse.jpg')
     parser.add_argument('--save_dir', type=str, default='latents')
-    parser.add_argument('--sd_version', type=str, default='2.1', choices=['1.5', '2.0', '2.1'],
+    parser.add_argument('--sd_version', type=str, default='1.5', choices=['1.5', '2.0', '2.1'],
                         help="stable diffusion version")
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--steps', type=int, default=999)

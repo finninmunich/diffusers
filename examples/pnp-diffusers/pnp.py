@@ -26,7 +26,8 @@ class PNP(nn.Module):
         if sd_version == '2.1':
             model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-2-1"
         elif sd_version == '1.5':
-            model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-v1-5"
+            #model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-v1-5"
+            model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/experiments/full_training/jidu-III-sunnyday2snowyday-v2/bs_6_lr_1e6_4gpu"
         else:
             raise ValueError(f'Stable-diffusion version {sd_version} not supported.')
 
@@ -128,7 +129,7 @@ class PNP(nn.Module):
                 x = self.denoise_step(x, t)
 
             decoded_latent = self.decode_latent(x)
-            T.ToPILImage()(decoded_latent[0]).save(f'{self.config["output_path"]}/output-{self.config["prompt"]}.png')
+            T.ToPILImage()(decoded_latent[0]).save(f'{self.config["output_path"]}/output-{self.config["prompt"][:20]}.png')
                 
         return decoded_latent
 

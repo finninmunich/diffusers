@@ -5,19 +5,16 @@ extract_reverse: False
 # general
 seed: 1
 device: 'cuda'
-output_path: 'PNP-results/00002'
+output_path: 'PNP-results/00004'
 
 # data
-image_path: 'data/00002.jpeg'
+image_path: 'data/00004.jpeg'
 
 # diffusion
 sd_version: '1.5'
 guidance_scale: 7.5
-n_timesteps: 50
-prompt: snowy-day,car,truck,building,sky,tree,road,sidewalk,person,bridge,railing,signboard,traffic,plant,fence,
-  The image depicts a busy city street with multiple cars driving down the road. The
-  overall atmosphere of the image is that of a bustling urban environment with a mix
-  of vehicles and pedestrians.
+n_timesteps: 100
+prompt: snowy-day,car,bus,van,minibike,building,streetlight,sky,tree,road,sidewalk,person,signboard,traffic,plant,fence, The image depicts a busy city street with multiple cars driving down the road. The street is lined with trees, adding a touch of greenery to the urban environment. There are at least nine cars visible in the scene, with some positioned closer to the foreground and others further away.
 negative_prompt: sunny,blurry, black, low res, unrealistic
 
 # pnp injection thresholds, ∈ [0, 1]

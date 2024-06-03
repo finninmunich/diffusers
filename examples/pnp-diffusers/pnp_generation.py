@@ -2,6 +2,7 @@ import glob
 import os
 from pathlib import Path
 import torch
+from ddpm_inversion.inversion_utils import *
 import torch.nn as nn
 import torchvision.transforms as T
 import argparse
@@ -35,7 +36,7 @@ class PNP(nn.Module):
             self.model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-2-1"
         elif sd_version == '1.5':
             # model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-v1-5"
-            self.model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/experiments/full_training/jidu-III-sunnyday2snowyday-v2/bs_6_lr_1e6_4gpu"
+            self.model_key ="/root/autodl-tmp/ImageGeneration/AI-ModelScope/stable-diffusion-v1-5"
         else:
             raise ValueError(f'Stable-diffusion version {sd_version} not supported.')
 
@@ -108,6 +109,10 @@ class PNP(nn.Module):
 
     @torch.no_grad()
     def denoise_step(self, x, t):
+        #TODO: here the denoise_step should be modifed by "inversion_reverse_process"
+        # mainly focused on the injection of noisy_latents and zt
+
+
         # register the time step and features in pnp injection modules
         source_latents = self.noisy_latents[int(t)]
         latent_model_input = torch.cat([source_latents] + ([x] * 2))
@@ -202,11 +207,13 @@ class PNP(nn.Module):
         cond = self.get_text_embeds(inversion_prompt, "")[1].unsqueeze(0)
         image = self.load_img(data_path)
         latent = self.encode_imgs(image)
-
+        #TODO: this steps should be replaced by "sample_xts_from_x0" and "inversion_forward_process"
+        # and self.noisy_latents should store different x_t, and another self.zt should store different zt
         inverted_x = self.inversion_func(cond, latent, save_path, save_latents=not extract_reverse,
                                          timesteps_to_save=timesteps_to_save)
         #print(self.noisy_latents.keys())
         if reconstruction:
+            #TODO: here the ddim_sample should be repalced by "our_inv"
             latent_reconstruction = self.ddim_sample(inverted_x, cond, save_path, save_latents=extract_reverse,
                                                      timesteps_to_save=timesteps_to_save)
             rgb_reconstruction = self.decode_latents(latent_reconstruction)
@@ -221,7 +228,7 @@ class PNP(nn.Module):
             imgs = self.vae.decode(latents).sample
             imgs = (imgs / 2 + 0.5).clamp(0, 1)
         return imgs
-    def feature_extraction(self):
+    def feature_extraction(self,reconstruction=False):
         # timesteps to save
         toy_scheduler = DDIMScheduler.from_pretrained(self.model_key, subfolder="scheduler")
         toy_scheduler.set_timesteps(self.config['save_steps'])
@@ -233,8 +240,9 @@ class PNP(nn.Module):
                                             save_path=self.config['output_path'],
                                             timesteps_to_save=timesteps_to_save,
                                             inversion_prompt=" ",
-                                            extract_reverse=self._extract_reverse)
-        if recon_image:
+                                            extract_reverse=self._extract_reverse,
+                                            reconstruction=reconstruction)
+        if reconstruction:
             T.ToPILImage()(recon_image[0]).save(os.path.join(self.config['output_path'], f'recon.jpg'))
     def init_pnp(self, conv_injection_t, qk_injection_t):
         self.qk_injection_timesteps = self.scheduler.timesteps[:qk_injection_t] if qk_injection_t >= 0 else []
@@ -244,6 +252,7 @@ class PNP(nn.Module):
 
     def run_pnp(self):
         # load image
+        #TODO: here self.eps should be replaced by x_t
         _, self.eps = self.get_data()
         pnp_f_t = int(self.config["n_timesteps"] * self.config["pnp_f_t"])
         pnp_attn_t = int(self.config["n_timesteps"] * self.config["pnp_attn_t"])
@@ -275,5 +284,5 @@ if __name__ == '__main__':
     seed_everything(config["seed"])
     print(config)
     pnp = PNP(config)
-    pnp.feature_extraction()
+    pnp.feature_extraction(reconstruction=True)
     pnp.run_pnp()

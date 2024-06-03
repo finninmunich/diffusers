@@ -1,20 +1,23 @@
 #feature extraction
-steps: 200
-save_steps: 200
+steps: 100
+save_steps: 100
 extract_reverse: False
 # general
 seed: 1
 device: 'cuda'
-output_path: 'PNP-results/00004'
+output_path: 'PNP-results/nuscenes_mini'
 
 # data
-image_path: 'data/00004.jpeg'
+image_path: 'data/nuscenes_mini.jpg'
 
 # diffusion
 sd_version: '1.5'
 guidance_scale: 7.5
 n_timesteps: 100
-prompt: snowy-day,car,bus,van,minibike,building,streetlight,sky,tree,road,sidewalk,person,signboard,traffic,plant,fence, The image depicts a busy city street with multiple cars driving down the road. The street is lined with trees, adding a touch of greenery to the urban environment. There are at least nine cars visible in the scene, with some positioned closer to the foreground and others further away.
+prompt: snowy day,The image shows a city street scene. 
+  There are several parked cars on the side of the road, and a few cars are in motion. 
+  The street is lined with buildings that appear to be of a similar architectural style, suggesting an urban area with a mix of residential and possibly commercial buildings.
+  There are no visible people in the image, and the overall atmosphere is calm and quiet. The street is marked with yellow lines, indicating a two-way traffic pattern.
 negative_prompt: sunny,blurry, black, low res, unrealistic
 
 # pnp injection thresholds, ∈ [0, 1]

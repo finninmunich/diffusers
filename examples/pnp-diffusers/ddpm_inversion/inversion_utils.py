@@ -40,7 +40,7 @@ def sample_xts_from_x0(model, x0, num_inference_steps=50):
     Samples from P(x_1:T|x_0)
     """
     # torch.manual_seed(43256465436)
-    alpha_bar = model.scheduler.alphas_cumprod
+    alpha_bar = model.inverse_scheduler.alphas_cumprod
     sqrt_one_minus_alpha_bar = (1 - alpha_bar) ** 0.5
     # alphas = model.scheduler.alphas
     # betas = 1 - alphas
@@ -50,10 +50,10 @@ def sample_xts_from_x0(model, x0, num_inference_steps=50):
     #         model.unet.sample_size,
     #         model.unet.sample_size)
 
-    timesteps = model.scheduler.timesteps.to(model.device)
+    timesteps = model.inverse_scheduler.timesteps.to(model.device)
     t_to_idx = {int(v): k for k, v in enumerate(timesteps)}
     xts = torch.zeros(
-        (num_inference_steps + 1, model.unet.in_channels, model.unet.sample_size, model.unet.sample_size)).to(x0.device)
+        (num_inference_steps + 1, model.unet.in_channels, x0.shape[-2], x0.shape[-1])).to(x0.device)
     xts[0] = x0
     for t in reversed(timesteps):  # [1,11,21,31,...981,991]
         idx = num_inference_steps - t_to_idx[int(t)]  # 1:1,2:11,3:21...
@@ -97,10 +97,10 @@ def forward_step(model, model_output, timestep, sample):
 
 
 def get_variance(model, timestep):  # , prev_timestep):
-    prev_timestep = timestep - model.scheduler.config.num_train_timesteps // model.scheduler.num_inference_steps
-    alpha_prod_t = model.scheduler.alphas_cumprod[timestep]
-    alpha_prod_t_prev = model.scheduler.alphas_cumprod[
-        prev_timestep] if prev_timestep >= 0 else model.scheduler.final_alpha_cumprod
+    prev_timestep = timestep - model.inverse_scheduler.config.num_train_timesteps // model.inverse_scheduler.num_inference_steps
+    alpha_prod_t = model.inverse_scheduler.alphas_cumprod[timestep]
+    alpha_prod_t_prev = model.inverse_scheduler.alphas_cumprod[
+        prev_timestep] if prev_timestep >= 0 else model.inverse_scheduler.final_alpha_cumprod
     beta_prod_t = 1 - alpha_prod_t
     beta_prod_t_prev = 1 - alpha_prod_t_prev
     variance = (beta_prod_t_prev / beta_prod_t) * (1 - alpha_prod_t / alpha_prod_t_prev)
@@ -255,6 +255,7 @@ def inversion_reverse_process(model,
     for t in op:
         idx = model.scheduler.num_inference_steps - t_to_idx[int(t)] - (
                     model.scheduler.num_inference_steps - zs.shape[0] + 1)
+        # 100 - 0 -1=99
         ## Unconditional embedding
         with torch.no_grad():
             uncond_out = model.unet.forward(xt, timestep=t,

@@ -1,3 +1,7 @@
+#forward-backward parameters
+etas: 1.0
+cfg_scale_src: 3.5
+cfg_scale_tar: 15
 #feature extraction
 steps: 100
 save_steps: 100

@@ -10,7 +10,7 @@ from PIL import Image
 import yaml
 from tqdm import tqdm
 from transformers import logging
-from diffusers import DDIMScheduler, StableDiffusionPipeline
+from diffusers import DDIMScheduler, StableDiffusionPipeline, UNet2DConditionModel
 
 from pnp_utils import *
 
@@ -34,7 +34,7 @@ class PNP(nn.Module):
         self.config = config
         self.device = config["device"]
         sd_version = config["sd_version"]
-
+        unet_ckpt = config['unet_ckpt']
         if sd_version == '2.1':
             self.model_key = "/home/turing/cfs_cz/finn/codes/DrivingEdition/examples/text_to_image/stable-diffusion-2-1"
         elif sd_version == '1.5':
@@ -45,8 +45,12 @@ class PNP(nn.Module):
 
         # Create SD models
         print('Loading SD model')
-
-        pipe = StableDiffusionPipeline.from_pretrained(self.model_key, ).to("cuda")
+        if unet_ckpt!='none':
+            unet = UNet2DConditionModel.from_pretrained(self.model_key, subfolder=os.path.join(unet_ckpt, 'unet'),
+                                                        use_safetensors=True).to("cuda")
+            pipe = StableDiffusionPipeline.from_pretrained(self.model_key,unet=unet).to("cuda")
+        else:
+            pipe = StableDiffusionPipeline.from_pretrained(self.model_key, ).to("cuda")
         pipe.enable_xformers_memory_efficient_attention()
 
         self.vae = pipe.vae
@@ -123,7 +127,7 @@ class PNP(nn.Module):
         batch_size = x.shape[0]
         source_latents = self.noisy_latents[int(t)]
         z = self.zs[int(t)]
-        z = z.expand(batch_size,-1,-1,-1)
+        z = z.expand(batch_size, -1, -1, -1)
         latent_model_input = torch.cat([source_latents] + ([x] * 2))
 
         register_time(self, t.item())
@@ -281,7 +285,7 @@ class PNP(nn.Module):
         # sample xts from x0
         alpha_bar = self.inverse_scheduler.alphas_cumprod
         sqrt_one_minus_alpha_bar = (1 - alpha_bar) ** 0.5
-        t_to_idx = {int(v): k for k, v in enumerate(timesteps)} # t_to_idx: [991:0,981:1,...1:99]
+        t_to_idx = {int(v): k for k, v in enumerate(timesteps)}  # t_to_idx: [991:0,981:1,...1:99]
         xts = torch.zeros(
             (self._steps + 1, self.unet.in_channels, x0.shape[-2], x0.shape[-1])).to(x0.device)
         xts[0] = x0
@@ -295,7 +299,7 @@ class PNP(nn.Module):
 
         # xt = x0
         # op = tqdm(reversed(timesteps)) if prog_bar else reversed(timesteps)
-        t_to_idx = {int(v): k for k, v in enumerate(timesteps)} # t_to_idx: [991:0,981:1,...1:99]
+        t_to_idx = {int(v): k for k, v in enumerate(timesteps)}  # t_to_idx: [991:0,981:1,...1:99]
         op = tqdm(timesteps)
         for t in op:
             # idx = t_to_idx[int(t)]
@@ -326,7 +330,7 @@ class PNP(nn.Module):
             pred_sample_direction = (1 - alpha_prod_t_prev - etas[idx] * variance) ** (0.5) * noise_pred
 
             mu_xt = alpha_prod_t_prev ** (0.5) * pred_original_sample + pred_sample_direction
-            #self.noisy_latents[int(t)] = mu_xt
+            # self.noisy_latents[int(t)] = mu_xt
             z = (xtm1 - mu_xt) / (etas[idx] * variance ** 0.5)  # xt-1 - mu_xt / sigma_t
             zs[idx] = z
             self.zs[int(t)] = z
@@ -341,6 +345,7 @@ class PNP(nn.Module):
         if not zs is None:
             zs[0] = torch.zeros_like(zs[0])
             self.zs[1] = zs[0]
+
     @torch.no_grad()
     def extract_latents(self, num_steps, data_path, save_path, timesteps_to_save,
                         inversion_prompt='', extract_reverse=False, reconstruction=False):
@@ -465,7 +470,7 @@ if __name__ == '__main__':
     seed_everything(config["seed"])
     print(config)
     pnp = PNP(config)
-    pnp.feature_extraction_ddpm_inversion()
-    #pnp.run_pnp_ddpm_inversion()
-    # pnp.feature_extraction(reconstruction=False)
+    # pnp.feature_extraction_ddpm_inversion()
+    # pnp.run_pnp_ddpm_inversion()
+    pnp.feature_extraction(reconstruction=False)
     pnp.run_pnp()

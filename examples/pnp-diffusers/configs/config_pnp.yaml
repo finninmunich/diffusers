@@ -3,25 +3,25 @@ etas: 1.0
 cfg_scale_src: 3.5
 cfg_scale_tar: 15
 #feature extraction
-steps: 100
-save_steps: 100
+steps: 999
+save_steps: 999
 extract_reverse: False
 # general
 seed: 1
 device: 'cuda'
-output_path: 'PNP-results/nuscenes_mini'
+output_path: 'PNP-results/nuscenes_480_no_finetune_999'
 
 # data
-image_path: 'data/nuscenes_mini.jpg'
+image_path: 'data/nuscenes_480.jpg'
 
 # diffusion
 sd_version: '1.5'
+#unet_ckpt: '/root/autodl-tmp/ImageGeneration/diffusers/examples/text_to_image/experiments/nuscenes_train_cam_front/full_training/bs_1_gpu_1_lr_1e6/checkpoint-15000'
+unet_ckpt: none
 guidance_scale: 7.5
-n_timesteps: 100
-prompt: snowy day,The image shows a city street scene. 
-  There are several parked cars on the side of the road, and a few cars are in motion. 
-  The street is lined with buildings that appear to be of a similar architectural style, suggesting an urban area with a mix of residential and possibly commercial buildings.
-  There are no visible people in the image, and the overall atmosphere is calm and quiet. The street is marked with yellow lines, indicating a two-way traffic pattern.
+n_timesteps: 999
+#prompt: night,Random scene, arrive at intersection, cross intersection, jaywalkerscar,truck,van,building,streetlight,sky,tree,road,sidewalk,person,bridge,signboard,traffic,grass,plant,fence,The image shows a street scene with a car driving on the road
+prompt: night
 negative_prompt: sunny,blurry, black, low res, unrealistic
 
 # pnp injection thresholds, ∈ [0, 1]

@@ -69,7 +69,7 @@ def main(args):
             key_label = 'sunny day'
             day_num+=1
         text += key_label + ","
-        text += meta['prompt']
+        #text += meta['prompt']
         text += dino['dino_semantic_label'] + ","
         sentences = llava['description'].split('.')
         for sentence in sentences:
